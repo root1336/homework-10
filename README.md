@@ -81,3 +81,165 @@ web | SUCCESS => {
     "ping": "pong"
 }
 
+8. Создаем файл nginx.yml в папке playbooks следющего содержания
+user@linux1:~/linux/homework-10$ cat playbooks/nginx.yml
+- hosts: web
+  become: true
+  vars:
+    nginx_port: 8080
+    nginx_repo_path: /etc/yum.repos.d/nginx.repo
+
+  tasks:
+
+    - name: 'Create file for NGINX repo'
+      file:
+        path: "{{ nginx_repo_path }}"
+        state: touch
+
+    - name: 'Add official NGINX repo'
+      blockinfile:
+        path: "{{ nginx_repo_path }}"
+        block: |
+          [nginx-stable]
+          name=nginx stable repo
+          baseurl=http://nginx.org/packages/centos/$releasever/$basearch/
+          gpgcheck=1
+          enabled=1
+          gpgkey=https://nginx.org/keys/nginx_signing.key
+          module_hotfixes=true 
+
+    - name: 'Install NGINX'
+      yum:
+        name: nginx
+        state: present
+
+    - name: 'Start NGINX server'
+      systemd:
+        name: nginx
+        state: started
+        enabled: true
+
+9. Запустим на исполнение плейбук и убедимся, что nginx установлен и запущен
+user@linux1:~/linux/homework-10$ ansible-playbook -i inventories/staging playbooks/nginx.yml
+
+PLAY [web] *********************************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [web]
+
+TASK [Create file for NGINX repo] **********************************************
+changed: [web]
+
+TASK [Add official NGINX repo] *************************************************
+ok: [web]
+
+TASK [Install NGINX] ***********************************************************
+ok: [web]
+
+TASK [Start NGINX server] ******************************************************
+changed: [web]
+
+PLAY RECAP *********************************************************************
+web                        : ok=5    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+user@linux1:~/linux/homework-10$ curl 192.168.11.151
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+10. Возьмем конфиг-файл установленного nginx, удалим закоммментированные строки и укажем требуемый порт 8080 (через имеющуюся переменную) вместо стандартного порта 80
+user@linux1:~/linux/homework-10$ cat templates/default.conf.j2
+server {
+    listen       {{ nginx_port }};
+    server_name  localhost;
+
+    #charset koi8-r;
+    #access_log  /var/log/nginx/host.access.log  main;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+
+    #error_page  404              /404.html;
+
+    # redirect server error pages to the static page /50x.html
+    #
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+}
+
+11. Добавим новый файл приветствия nginx:
+user@linux1:~/linux/homework-10$ cat templates/index.html.j2
+<h> My hostname is {{ ansible_hostname }} </h>
+
+12. Добавим в плейбук nginx.yml две новые задачи по подмене файла конфигурации и стартовой страницы
+    - name: 'Copy index.html'
+      template:
+        src: ../templates/index.html.j2
+        dest: /usr/share/nginx/html/index.html
+
+    - name: 'Copy default.conf'
+      template:
+        src: ../templates/default.conf.j2
+        dest: /etc/nginx/conf.d/default.conf
+
+13. Запустим на исполнение плейбук и затем убедимся, что nginx теперь работает на другом порту - 8080 и выдает новую стартовую страницу
+user@linux1:~/linux/homework-10$ ansible-playbook -i inventories/staging playbooks/nginx.yml
+
+PLAY [web] *********************************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [web]
+
+TASK [Create file for NGINX repo] **********************************************
+changed: [web]
+
+TASK [Add official NGINX repo] *************************************************
+ok: [web]
+
+TASK [Install NGINX] ***********************************************************
+ok: [web]
+
+TASK [Start NGINX server] ******************************************************
+ok: [web]
+
+TASK [Copy index.html] *********************************************************
+ok: [web]
+
+TASK [Copy default.conf] *******************************************************
+ok: [web]
+
+TASK [Reload NGINX] ************************************************************
+changed: [web]
+
+PLAY RECAP *********************************************************************
+web                        : ok=8    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+user@linux1:~/linux/homework-10$ curl 192.168.11.151:8080
+<h> My hostname is web </h>user@linux1:~/linux/homework-10$ 
+
