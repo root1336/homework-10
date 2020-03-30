@@ -197,7 +197,7 @@ server {
 user@linux1:~/linux/homework-10$ cat templates/index.html.j2
 <h> My hostname is {{ ansible_hostname }} </h>
 
-12. Добавим в плейбук nginx.yml две новые задачи по подмене файла конфигурации и стартовой страницы
+12. Добавим в плейбук nginx.yml две новые задачи по подмене файла конфигурации и стартовой страницы. После подмены файлов будет вызван обработчик для перезапуска nginx (данный способ не рекомендуется, т.к запуск обработчика не будет вызван если при выполнении плейбука не будет изменен файл конфигурации) - здесь это сделано только для демонстрации
     - name: 'Copy index.html'
       template:
         src: ../templates/index.html.j2
@@ -207,39 +207,14 @@ user@linux1:~/linux/homework-10$ cat templates/index.html.j2
       template:
         src: ../templates/default.conf.j2
         dest: /etc/nginx/conf.d/default.conf
+      notify:
+        - reload nginx
+
+  handlers:
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
 
 13. Запустим на исполнение плейбук и затем убедимся, что nginx теперь работает на другом порту - 8080 и выдает новую стартовую страницу
-user@linux1:~/linux/homework-10$ ansible-playbook -i inventories/staging playbooks/nginx.yml
-
-PLAY [web] *********************************************************************
-
-TASK [Gathering Facts] *********************************************************
-ok: [web]
-
-TASK [Create file for NGINX repo] **********************************************
-changed: [web]
-
-TASK [Add official NGINX repo] *************************************************
-ok: [web]
-
-TASK [Install NGINX] ***********************************************************
-ok: [web]
-
-TASK [Start NGINX server] ******************************************************
-ok: [web]
-
-TASK [Copy index.html] *********************************************************
-ok: [web]
-
-TASK [Copy default.conf] *******************************************************
-ok: [web]
-
-TASK [Reload NGINX] ************************************************************
-changed: [web]
-
-PLAY RECAP *********************************************************************
-web                        : ok=8    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
-
-user@linux1:~/linux/homework-10$ curl 192.168.11.151:8080
-<h> My hostname is web </h>user@linux1:~/linux/homework-10$ 
 
