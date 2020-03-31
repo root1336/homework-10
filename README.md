@@ -198,23 +198,23 @@
 	```
 12. Напоследок добавим в плейбук nginx.yml две новые задачи по подмене файла конфигурации и стартовой страницы и обработчик для перезапуска nginx. Обработчик будет вызываться после подмены файлов для перезапуска nginx (в данном конкретном случае этот способ не рекомендуется, т.к запуск обработчика не будет вызван если при выполнении плейбука не будет изменен файл конфигурации - здесь это сделано только для демонстрации).  
 	```
-    - name: 'Copy index.html'
-      template:
-        src: ../templates/index.html.j2
-        dest: /usr/share/nginx/html/index.html
+	    - name: 'Copy index.html'
+	      template:
+		src: ../templates/index.html.j2
+		dest: /usr/share/nginx/html/index.html
 
-    - name: 'Copy default.conf'
-      template:
-        src: ../templates/default.conf.j2
-        dest: /etc/nginx/conf.d/default.conf
-      notify:
-        - reload nginx
+	    - name: 'Copy default.conf'
+	      template:
+		src: ../templates/default.conf.j2
+		dest: /etc/nginx/conf.d/default.conf
+	      notify:
+		- reload nginx
 
-  handlers:
-    - name: reload nginx
-      systemd:
-        name: nginx
-        state: reloaded
+	  handlers:
+	    - name: reload nginx
+	      systemd:
+		name: nginx
+		state: reloaded
 	```
 13. Запускаем на исполнение плейбук и убеждаемся, что nginx теперь работает на другом порту - 8080 и выдает новую стартовую страницу.
 	```
