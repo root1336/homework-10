@@ -53,9 +53,12 @@ Vagrant.configure("2") do |config|
           chmod 0600 /home/vagrant/.ssh/id_rsa
           echo "192.168.11.151  web" >> /etc/hosts
           # Create project structure
-	  if [ ! -d ~/ansible ]
+	  if [ ! -d /home/vagrant/ansible ]
           then 
-	    mkdir ~/ansible
+	    mkdir /home/vagrant/ansible
+            cp -r /vagrant/inventories/ /home/vagrant/ansible/
+            cp -r /vagrant/playbooks/ /home/vagrant/ansible/
+            cp -r /vagrant/templates/ /home/vagrant/ansible/
           fi
           SHELL
       when "web"

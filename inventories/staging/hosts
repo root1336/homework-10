@@ -1,4 +1,4 @@
 [proxy]
-web ansible_host=192.168.11.151 ansible_port=2200 ansible_user=vagrant ansible_private_key_file=/vagrant/id_rsa
+web ansible_ssh_host=192.168.11.151 ansible_ssh_port=22 ansible_ssh_user=vagrant ansible_ssh_private_key_file=/home/vagrant/.ssh/id_rsa
 
 
