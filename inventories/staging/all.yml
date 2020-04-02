@@ -8,7 +8,7 @@ all:
 
 proxy:
   hosts:
-    staging-nginx-01:
-      ansible_host: 127.0.0.1
-      ansible_port: 2201
-      ansible_ssh_private_key_file: /Users/lalbrekht/Projects/Otus/stands/09-1-ansible/.vagrant/machines/staging-nginx-01/virtualbox/private_key
+    web:
+      ansible_host: 192.168.11.151
+      ansible_port: 22
+      ansible_ssh_private_key_file: /home/vagrant/.ssh/id_rsa

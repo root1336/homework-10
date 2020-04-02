@@ -224,46 +224,76 @@
 
 ## Выполнение основного ДЗ 
 
-1. 
-user@linux1:~/linux/homework-10$ vagrant ssh ansible
-Last login: Tue Mar 31 16:49:17 2020 from 10.0.2.2
-[vagrant@ansible ~]$ cd ansible
-[vagrant@ansible ansible]$ ansible-playbook -i inventories/staging/hosts playbooks/nginx.yml
+1. Создадим в основной папке файл конфигурации, в котором укажем инвентори и пользователя
+	```
+	user@linux1:~/linux/homework-10$ cat ansible.cfg
+	[defaults]
+	inventory = inventories/staging/
+	remote_user = vagrant
+	```
+2. Вместо файла hosts создадим файл all.yml и пропишем в нем параметры машины web (создадим разные типы серверов и отнесем машину web к типу прокси-серверов)
+user@linux1:~/linux/homework-10$ cat inventories/staging/all.yml
+	```
+	all:
+	  children:
+	    proxy:
+	    db:
+	    app:
+	  vars:
+	    ansible_user: 'vagrant'
 
-PLAY [web] *********************************************************************
+	proxy:
+	  hosts:
+	    web:
+	      ansible_host: 192.168.11.151
+	      ansible_port: 22
+	      ansible_ssh_private_key_file: /home/vagrant/.ssh/id_rsa
+	```
+3. Для демонстрации работы плейбука изменим взятый со стенда Vagrantfile - прописываем копирование наших созданных папок и файла конфигурации в папку ~/ansible машины ansible. Осталось только поднять машины и проверить отработку плейбука ансиблом, но не тут-то было, именно здесь и скрылась засада, с которой пришлось порядочно поразбираться, штудировать разные мануалы и перерывать все возможные конфиги - ansible никак не хотел соединяться с машиной web ну и пинг, конечно, не проходил. Хотя в итоге проблема оказалась пустяковой и лежала на поверхности. Затык оказался в том, что вагрант пробрасывает порты к виртулкам через адрес localhost, и все изучение ansible началось именно с параметров подключения к машине web через localhost и проброшенный порт 2200, а когда мы перенесли весь код на машину ansible демонстарционного стенда, то там, разумеется никаких настроек проброса порта не было. В итоге переписал настройки подключения на указанный в вагранте адрес виртуалки 192.168.11.151 и стандартного порта 22, после этого все завелось (в описании выполнения ДЗ уже указал нормальный адрес и порт). По результатам произведенных действий осталась пара вопросов: 1) На практике какой подход предпочтительнее? Указывать при работе с ansible реальные адреса поднятых нами виртуалок, или все-таки использовать адрес физического сервера и проброшенные порты? У меня ощущение, что при массовом выполнении однотипных задач на поднятых серверах могут быть различные нюансы и это может иметь значение. 2) Когда разбирался проблемой подключения, что-то не понял как посмотреть настройки проброшенных портов с помощью iptables. Быстрее разобрался с помощью других команд.
 
-TASK [Gathering Facts] *********************************************************
-The authenticity of host '192.168.11.151 (192.168.11.151)' can't be established.
-ECDSA key fingerprint is SHA256:Vf//4KHEF0k2nZmuGv/o+Z3RUpqnSVdTDvnNkqNmGzo.
-ECDSA key fingerprint is MD5:1b:55:85:e9:6b:f5:8a:93:6b:f8:f0:a9:f2:15:4a:8c.
-Are you sure you want to continue connecting (yes/no)? yes
-ok: [web]
+4. Поднимаем вагрантом обе наши виртаулки после чего подключаемся к машине ansible, затем переходим в папку ansible и запускаем созданный ранее плейбук 
+	```
+	user@linux1:~/linux/homework-10$ vagrant ssh ansible
+	Last login: Tue Mar 31 16:49:17 2020 from 10.0.2.2
+	[vagrant@ansible ~]$ cd ansible
+	[vagrant@ansible ansible]$ ansible-playbook playbooks/nginx.yml
 
-TASK [Create file for NGINX repo] **********************************************
-changed: [web]
+	PLAY [web] *********************************************************************
 
-TASK [Add official NGINX repo] *************************************************
-changed: [web]
+	TASK [Gathering Facts] *********************************************************
+	The authenticity of host '192.168.11.151 (192.168.11.151)' can't be established.
+	ECDSA key fingerprint is SHA256:Vf//4KHEF0k2nZmuGv/o+Z3RUpqnSVdTDvnNkqNmGzo.
+	ECDSA key fingerprint is MD5:1b:55:85:e9:6b:f5:8a:93:6b:f8:f0:a9:f2:15:4a:8c.
+	Are you sure you want to continue connecting (yes/no)? yes
+	ok: [web]
 
-TASK [Install NGINX] ***********************************************************
-changed: [web]
+	TASK [Create file for NGINX repo] **********************************************
+	changed: [web]
 
-TASK [Start NGINX server] ******************************************************
-changed: [web]
+	TASK [Add official NGINX repo] *************************************************
+	changed: [web]
 
-TASK [Copy index.html] *********************************************************
-changed: [web]
+	TASK [Install NGINX] ***********************************************************
+	changed: [web]
 
-TASK [Copy default.conf] *******************************************************
-changed: [web]
+	TASK [Start NGINX server] ******************************************************
+	changed: [web]
 
-RUNNING HANDLER [reload nginx] *************************************************
-changed: [web]
+	TASK [Copy index.html] *********************************************************
+	changed: [web]
 
-PLAY RECAP *********************************************************************
-web                        : ok=8    changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+	TASK [Copy default.conf] *******************************************************
+	changed: [web]
 
-2. 
-[vagrant@ansible ansible]$ curl web:8080
-<h> My hostname is web </h>[vagrant@ansible ansible]$ 
+	RUNNING HANDLER [reload nginx] *************************************************
+	changed: [web]
+
+	PLAY RECAP *********************************************************************
+	web                        : ok=8    changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+	```
+5. Проверяем, что nginx поднят и работает на указанном нами порту 8080
+	```
+	[vagrant@ansible ansible]$ curl web:8080
+	<h> My hostname is web </h>[vagrant@ansible ansible]$ 
+	```
 

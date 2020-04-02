@@ -59,6 +59,7 @@ Vagrant.configure("2") do |config|
             cp -r /vagrant/inventories/ /home/vagrant/ansible/
             cp -r /vagrant/playbooks/ /home/vagrant/ansible/
             cp -r /vagrant/templates/ /home/vagrant/ansible/
+            cp /vagrant/ansible.cfg /home/vagrant/ansible/ansible.cfg
           fi
           SHELL
       when "web"
