@@ -1,0 +1,7 @@
+---
+- hosts: web2
+  become: true
+
+  roles:
+    - nginx
+

@@ -1,0 +1,42 @@
+---
+# tasks file for roles/nginx
+- name: 'Create file for NGINX repo'
+  file:
+    path: "{{ nginx_repo_path }}"
+    state: touch
+
+- name: 'Add official NGINX repo'
+  blockinfile:
+    path: "{{ nginx_repo_path }}"
+    block: |
+      [nginx-stable]
+      name=nginx stable repo
+      baseurl=http://nginx.org/packages/centos/$releasever/$basearch/
+      gpgcheck=1
+      enabled=1
+      gpgkey=https://nginx.org/keys/nginx_signing.key
+      module_hotfixes=true 
+
+- name: 'Install NGINX'
+  yum:
+    name: nginx
+    state: present
+
+- name: 'Start NGINX server'
+  systemd:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: 'Copy index.html'
+  template:
+    src: ../templates/index.html.j2
+    dest: /usr/share/nginx/html/index.html
+
+- name: 'Copy default.conf'
+  template:
+    src: ../templates/default.conf.j2
+    dest: /etc/nginx/conf.d/default.conf
+  notify:
+  - reload nginx
+

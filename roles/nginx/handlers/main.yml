@@ -1,0 +1,7 @@
+---
+# handlers file for roles/nginx
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+

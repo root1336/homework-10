@@ -222,7 +222,7 @@
 	<h> My hostname is web </h>user@linux1:~/linux/homework-10$ 
 	```
 
-## Выполнение основного ДЗ 
+## Выполнение основного ДЗ - playbooks
 
 1. Создадим в основной папке файл конфигурации, в котором укажем инвентори и пользователя  
 	```
@@ -296,4 +296,205 @@
 	[vagrant@ansible ansible]$ curl web:8080
 	<h> My hostname is web </h>[vagrant@ansible ansible]$ 
 	```
+
+## Выполнение ДЗ* - roles
+
+1. Инициализируем в основной папке структуру папок для роли nginx  
+	```
+	user@linux1:~/linux/homework-10$ ansible-galaxy init roles/nginx
+	- Role roles/nginx was created successfully
+	```
+2. Скопируем наши готовые шаблоны в папку roles/nginx/templates  
+	```
+	user@linux1:~/linux/homework-10$ cp templates/* roles/nginx/templates/
+	```
+3. Перенесем задачи из плейбука playbooks/nginx.yml в файл задач roles/nginx/tasks/main.yml  
+	```
+	user@linux1:~/linux/homework-10$ cat roles/nginx/tasks/main.yml
+	---
+	# tasks file for roles/nginx
+	- name: 'Create file for NGINX repo'
+	  file:
+	    path: "{{ nginx_repo_path }}"
+	    state: touch
+
+	- name: 'Add official NGINX repo'
+	  blockinfile:
+	    path: "{{ nginx_repo_path }}"
+	    block: |
+	      [nginx-stable]
+	      name=nginx stable repo
+	      baseurl=http://nginx.org/packages/centos/$releasever/$basearch/
+	      gpgcheck=1
+	      enabled=1
+	      gpgkey=https://nginx.org/keys/nginx_signing.key
+	      module_hotfixes=true 
+
+	- name: 'Install NGINX'
+	  yum:
+	    name: nginx
+	    state: present
+
+	- name: 'Start NGINX server'
+	  systemd:
+	    name: nginx
+	    state: started
+	    enabled: true
+
+	- name: 'Copy index.html'
+	  template:
+	    src: ../templates/index.html.j2
+	    dest: /usr/share/nginx/html/index.html
+
+	- name: 'Copy default.conf'
+	  template:
+	    src: ../templates/default.conf.j2
+	    dest: /etc/nginx/conf.d/default.conf
+	  notify:
+	  - reload nginx
+	```
+4. Перенесем все переменные из плейбука playbooks/nginx.yml в файл переменных roles/nginx/defaults/main.yml  
+	```
+	user@linux1:~/linux/homework-10$ cat roles/nginx/defaults/main.yml
+	---
+	# defaults file for roles/nginx
+	nginx_port: 8080
+	nginx_repo_path: /etc/yum.repos.d/nginx.repo
+	```
+5. Перенесем обработчик события reload nginx из плейбука playbooks/nginx.yml в файл обработчиков событий roles/nginx/handlers/main.yml  
+	```
+	user@linux1:~/linux/homework-10$ cat roles/nginx/handlers/main.yml
+	---
+	# handlers file for roles/nginx
+	- name: reload nginx
+	  systemd:
+	    name: nginx
+	    state: reloaded
+	```
+6. Подправим файл инвентори inventories/staging/all.yml, добавив новую машину web2  
+	```
+	user@linux1:~/linux/homework-10$ cat inventories/staging/all.yml
+	all:
+	  children:
+	    proxy:
+	    db:
+	    app:
+	  vars:
+	    ansible_user: 'vagrant'
+
+	proxy:
+	  hosts:
+	    web:
+	      ansible_host: 192.168.11.151
+	      ansible_port: 22
+	      ansible_ssh_private_key_file: /home/vagrant/.ssh/id_rsa
+
+	    web2:
+	      ansible_host: 192.168.11.152
+	      ansible_port: 22
+	      ansible_ssh_private_key_file: /home/vagrant/.ssh/id_rsa
+	```
+7. Добавим новую виртуалку web2 в Vagrantfile с адресом 192.168.11.152 и скопируем в папку ansible нашу папку с ролью nginx  
+	```
+	...
+	MACHINES = {
+	...
+	  :web2 => {
+		:box_name => "centos/7",
+		:ip_addr => '192.168.11.152',
+	  }
+	}
+	...
+	      case boxname.to_s
+	      when "ansible"
+		box.vm.provision "shell", run: "always", inline: <<-SHELL
+		  ...
+		  echo "192.168.11.151  web" >> /etc/hosts
+		  echo "192.168.11.152  web2" >> /etc/hosts
+		  # Create project structure
+		  if [ ! -d /home/vagrant/ansible ]
+		  then 
+		    mkdir /home/vagrant/ansible
+		    cp -r /vagrant/inventories/ /home/vagrant/ansible/
+		    cp -r /vagrant/playbooks/ /home/vagrant/ansible/
+		    cp -r /vagrant/templates/ /home/vagrant/ansible/
+		    cp -r /vagrant/roles/ /home/vagrant/ansible/
+		    cp /vagrant/ansible.cfg /home/vagrant/ansible/ansible.cfg
+		  fi
+		  SHELL
+	      when "web", "web2"
+		box.vm.provision "shell", run: "always", inline: <<-SHELL
+		echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCW+VHI6di+7jZZhnYiCUciVO3oCSJ1xkV+8TINsNy1Itek0BUnorH+Mh6wC5eHoFVsid39v5A5ypzYZvJWhjwu4LNBJFroNhPnpmSBoA7Xk9U+slDI1A6pImop3qQbncMbYMdeyK5yoQO9bgJKDoQG7ak99qp24C4koFHGXO9Bejhenkkct2j0iTQreRyv2y3oSeOvsvQcBFuYS3H0FPhTUII8dx+/tjOTYFaxiA+EkWhuyXfhnrUd60BN5+ajqEgtv4CYZm2MBzDWu3Sor142Ms3R/FbwF1MJKd7JHOzJcTARfnpBqBZi+Or+l9+Pdl8yzxbxO0+9yaj7MGP9eyVT" >> /home/vagrant/.ssh/authorized_keys
+		SHELL
+	      end
+
+	      end
+	   end
+	end
+	```
+8. В папке playbooks создадим дополнительный плейбук nginx-role.yml для запуска роли nginx  
+	```
+	user@linux1:~/linux/homework-10$ cat playbooks/nginx-role.yml
+	---
+	- hosts: web2
+	  become: true
+
+	  roles:
+	    - nginx
+	```
+9. Подправим файл конфигурации ansible - зададим в нем путь для ролей  
+	```
+	user@linux1:~/linux/homework-10$ cat ansible.cfg
+	[defaults]
+	inventory = inventories/staging/
+	remote_user = vagrant
+	roles_path = ./roles
+	```
+10. Протестируем созданную роль командой ansible-playbook playbooks/nginx-role.yml --check и исправим найденные ошибки  
+
+11. Поднимаем вагрантом наши виртаулки после чего подключаемся к машине ansible, затем переходим в папку ansible и запускаем плейбук nginx-role.yml  
+	```
+	user@linux1:~/linux/homework-10$ vagrant ssh ansible
+	[vagrant@ansible ~]$ cd ansible
+	[vagrant@ansible ansible]$ ansible-playbook playbooks/nginx-role.yml
+
+	PLAY [web2] ********************************************************************
+
+	TASK [Gathering Facts] *********************************************************
+	The authenticity of host '192.168.11.152 (192.168.11.152)' can't be established.
+	ECDSA key fingerprint is SHA256:fb4KkuUHEMD9nqXshw8SyBbVD2wlXx/NH6PDaQi+D7g.
+	ECDSA key fingerprint is MD5:4f:e7:86:ed:56:61:1d:a0:6b:85:91:2f:1d:a4:ef:bf.
+	Are you sure you want to continue connecting (yes/no)? yes
+	ok: [web2]
+
+	TASK [nginx : Create file for NGINX repo] **************************************
+	changed: [web2]
+
+	TASK [nginx : Add official NGINX repo] *****************************************
+	changed: [web2]
+
+	TASK [nginx : Install NGINX] ***************************************************
+	changed: [web2]
+
+	TASK [nginx : Start NGINX server] **********************************************
+	changed: [web2]
+
+	TASK [nginx : Copy index.html] *************************************************
+	changed: [web2]
+
+	TASK [nginx : Copy default.conf] ***********************************************
+	changed: [web2]
+
+	RUNNING HANDLER [nginx : reload nginx] *****************************************
+	changed: [web2]
+
+	PLAY RECAP *********************************************************************
+	web2                       : ok=8    changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+	```
+12. Проверяем, что nginx поднят на web2 и работает на указанном нами порту 8080  
+	```
+	[vagrant@ansible ansible]$ curl web2:8080
+	<h> My hostname is web2 </h>[vagrant@ansible ansible]$ 
+	```
+
 
