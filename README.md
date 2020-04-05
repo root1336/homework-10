@@ -497,4 +497,102 @@
 	<h> My hostname is web2 </h>[vagrant@ansible ansible]$ 
 	```
 
+## Выполнение ДЗ* - Лучший вариант c использованием провижининга ansible
+
+1. Данный вариант с ипользованием провининига ansible позволяет запустить виртуалку сразу с запуском роли и является наиболее оптимальным способом.  
+
+2. Для этого изменяем Vagrantfile на следующий:  
+	```
+	user@linux1:~/linux/homework-10$ cat Vagrantfile
+	# -*- mode: ruby -*-
+	# vim: set ft=ruby :
+	home = ENV['HOME']
+
+	MACHINES = {
+	  :web2 => {
+		:box_name => "centos/7",
+		:ip_addr => '192.168.11.152',
+	  }
+	}
+
+	Vagrant.configure("2") do |config|
+
+	  MACHINES.each do |boxname, boxconfig|
+
+	      config.vm.define boxname do |box|
+
+		  box.vm.box = boxconfig[:box_name]
+		  box.vm.host_name = boxname.to_s
+
+		  box.vm.network "private_network", ip: boxconfig[:ip_addr]
+
+		  box.vm.provider :virtualbox do |vb|
+		  vb.customize ["modifyvm", :id, "--memory", "256"]
+		  vb.name = boxname.to_s
+
+		  end
+
+		  box.vm.provision "shell", inline: <<-SHELL
+		    mkdir -p ~root/.ssh
+		    cp ~vagrant/.ssh/auth* ~root/.ssh
+		  SHELL
+		  
+		  box.vm.provision "ansible" do |ansible|
+		    ansible.playbook = "playbooks/nginx-role.yml"
+		    ansible.become = "true"
+		  end
+	      end
+	   end
+	end
+	```
+3. И поднимаем виртуалку  
+	```
+	user@linux1:~/linux/homework-10$ vagrant up
+	Bringing machine 'web2' up with 'virtualbox' provider...
+	==> web2: Importing base box 'centos/7'...
+	==> web2: Matching MAC address for NAT networking...
+	...
+	==> web2: Running provisioner: ansible...
+	Vagrant has automatically selected the compatibility mode '2.0'
+	according to the Ansible version installed (2.9.6).
+
+	Alternatively, the compatibility mode can be specified in your Vagrantfile:
+	https://www.vagrantup.com/docs/provisioning/ansible_common.html#compatibility_mode
+
+	    web2: Running ansible-playbook...
+
+	PLAY [web2] ********************************************************************
+
+	TASK [Gathering Facts] *********************************************************
+	ok: [web2]
+
+	TASK [nginx : Create file for NGINX repo] **************************************
+	changed: [web2]
+
+	TASK [nginx : Add official NGINX repo] *****************************************
+	changed: [web2]
+
+	TASK [nginx : Install NGINX] ***************************************************
+	changed: [web2]
+
+	TASK [nginx : Start NGINX server] **********************************************
+	changed: [web2]
+
+	TASK [nginx : Copy index.html] *************************************************
+	changed: [web2]
+
+	TASK [nginx : Copy default.conf] ***********************************************
+	changed: [web2]
+
+	RUNNING HANDLER [nginx : reload nginx] *****************************************
+	changed: [web2]
+
+	PLAY RECAP *********************************************************************
+	web2                       : ok=8    changed=7    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+	```
+4. Проверяем nginx на виртуалке  
+	```
+	user@linux1:~/linux/homework-10$ curl 192.168.11.152:8080
+	<h> My hostname is web2 </h>user@linux1:~/linux/homework-10$ 
+	```
 
